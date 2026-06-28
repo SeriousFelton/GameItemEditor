@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   api:
-    build:
+    build: .
       context: .
       dockerfile: GameItemEditor.Api/Dockerfile
     container_name: gameitemeditor-api
