@@ -1,0 +1,6 @@
+@GameItemEditor.Api_HostAddress = http://localhost:5121
+
+GET {{GameItemEditor.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
