@@ -1,3 +1,5 @@
+using GameItemEditor.Api.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace GameItemEditor.Api
 {
@@ -13,6 +15,19 @@ namespace GameItemEditor.Api
                 options.ListenAnyIP(5001);
             });
 
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("aalowWpfClient", policy =>
+                {
+                    policy.WithOrigins("http://localhost:5000", "https://localhost:5001")
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                });
+            });
+
             builder.Services.AddAuthorization();
 
             builder.Services.AddControllers();
@@ -21,6 +36,12 @@ namespace GameItemEditor.Api
 
             var app = builder.Build();
 
+            using (var scope = app.Services.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<DbContext>();
+                dbContext.Database.Migrate();
+            }
+
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -28,7 +49,7 @@ namespace GameItemEditor.Api
             }
 
             app.UseHttpsRedirection();
-
+            app.UseCors("AllowWpfClient");
             app.UseAuthorization();
             app.MapControllers();
 
