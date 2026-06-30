@@ -56,5 +56,30 @@ namespace GameItemEditor.Api.Helpers
                 UpdatedAt = gameItem.UpdatedAt
             };
         }
+
+        public static GameItem MapToGameItem(PatchItemDto dto, GameItem existingItem)
+        {
+            if (dto.Name != null)
+                existingItem.Name = dto.Name;
+
+            if (dto.Type.HasValue)
+                existingItem.Type = dto.Type.Value;
+
+            if (dto.Rarity.HasValue)
+                existingItem.Rarity = dto.Rarity.Value;
+
+            if (dto.BasePrice.HasValue)
+                existingItem.BasePrice = dto.BasePrice.Value;
+
+            if (dto.Weight.HasValue)
+                existingItem.Weight = dto.Weight.Value;
+
+            if (dto.Properties != null)
+                existingItem.PropertiesJson = JsonSerializer.Serialize(dto.Properties, JsonOptions);
+
+            existingItem.UpdatedAt = DateTime.UtcNow;
+
+            return existingItem;
+        }
     }
 }
