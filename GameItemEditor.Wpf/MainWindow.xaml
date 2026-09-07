@@ -3,10 +3,134 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:GameItemEditor.Wpf"
+        xmlns:converters="clr-namespace:GameItemEditor.Wpf.Converters"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="GameItem Editor - Редактор предметов" 
+        Height="600" Width="1000"
+        WindowStartupLocation="CenterScreen">
 
+    <Window.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
+        <!-- Стиль для цвета редкости (оставляем для красоты) -->
+        <Style TargetType="TextBlock" x:Key="RarityStyle">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Rarity}" Value="Common">
+                    <Setter Property="Foreground" Value="Gray"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Rarity}" Value="Uncommon">
+                    <Setter Property="Foreground" Value="Green"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Rarity}" Value="Rare">
+                    <Setter Property="Foreground" Value="Blue"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Rarity}" Value="Epic">
+                    <Setter Property="Foreground" Value="Purple"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Rarity}" Value="Legendary">
+                    <Setter Property="Foreground" Value="Orange"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <TextBlock Grid.Row="0" Text="Редактор игровых предметов" 
+                   FontSize="24" FontWeight="Bold" 
+                   HorizontalAlignment="Center" Margin="0,0,0,10"/>
+
+        <!-- Панель инструментов -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Content="Создать" Command="{Binding OpenEditorCommand}" 
+                    Width="120" Height="30" Margin="0,0,10,0"/>
+            <Button Content="Удалить" Command="{Binding DeleteItemCommand}" 
+                    CommandParameter="{Binding SelectedItem}"
+                    Width="120" Height="30" Margin="0,0,10,0"/>
+            <Button Content="Обновить" Command="{Binding LoadItemsCommand}" 
+                    Width="120" Height="30" Margin="0,0,10,0"/>
+            <Button Content="Отмена" Command="{Binding CancelCommand}" 
+                    Width="120" Height="30" Margin="0,0,10,0"
+                    IsEnabled="{Binding IsBusy}"/>
+
+            <!-- Прогресс-бар -->
+            <ProgressBar Width="150" Height="20" 
+                         IsIndeterminate="{Binding IsBusy}"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                         Margin="20,0,0,0"/>
+        </StackPanel>
+
+        <!-- Поиск и фильтры (жёсткие значения) -->
+        <Border Grid.Row="2" BorderBrush="LightGray" BorderThickness="1" 
+                Padding="10" Margin="0,0,0,10" CornerRadius="5">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Поиск:" Width="50" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" 
+                         Width="200" Margin="0,0,15,0" VerticalAlignment="Center"/>
+
+                <TextBlock Text="Тип:" Width="40" VerticalAlignment="Center"/>
+                <ComboBox 
+    ItemsSource="{Binding ItemTypesWithAll}" 
+    SelectedItem="{Binding SelectedType}" 
+    DisplayMemberPath="Name"
+    Width="120" Margin="0,0,15,0" VerticalAlignment="Center"/>
+
+                <TextBlock Text="Редкость:" Width="60" VerticalAlignment="Center"/>
+                <ComboBox 
+    ItemsSource="{Binding ItemRaritiesWithAll}" 
+    SelectedItem="{Binding SelectedRarity}" 
+    DisplayMemberPath="Name"
+    Width="120" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- DataGrid -->
+        <DataGrid Grid.Row="3" 
+                  ItemsSource="{Binding Items}"
+                  SelectedItem="{Binding SelectedItem}"
+                  AutoGenerateColumns="False"
+                  CanUserSortColumns="True"
+                  IsReadOnly="True"
+                  Margin="0,0,0,10"
+                  AlternatingRowBackground="LightGray">
+
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="*"/>
+                <DataGridTextColumn Header="Тип" Binding="{Binding Type}" Width="100"/>
+                <DataGridTextColumn Header="Редкость" Binding="{Binding Rarity}" Width="100">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource RarityStyle}"/>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Цена" Binding="{Binding BasePrice, StringFormat={}{0:F2}}" Width="100"/>
+                <DataGridTextColumn Header="Вес" Binding="{Binding Weight, StringFormat={}{0:F1}}" Width="80"/>
+                <DataGridTextColumn Header="Дата создания" Binding="{Binding CreatedAt, StringFormat={}{0:dd.MM.yyyy HH:mm}}" Width="150"/>
+                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="200"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Статус-бар -->
+        <StatusBar Grid.Row="4">
+            <StatusBarItem>
+                <TextBlock Text="{Binding Items.Count, StringFormat=Всего предметов: {0}}" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock Text="{Binding IsBusy, StringFormat=Статус: {0}}" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock Text="{Binding SelectedItem.Name, StringFormat=Выбран: {0}}" />
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
 </Window>

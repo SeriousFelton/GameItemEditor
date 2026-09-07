@@ -32,7 +32,8 @@ namespace GameItemEditor.Api.Controllers
                 var query = _context.GameItems.AsQueryable();
                 if (!string.IsNullOrWhiteSpace(search))
                 {
-                    query = query.Where(item => item.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+                    var searchTerm = search.Trim();
+                    query = query.Where(item => EF.Functions.ILike(item.Name, $"%{searchTerm}%"));
                 }
 
                 if (type.HasValue)

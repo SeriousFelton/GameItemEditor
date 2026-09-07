@@ -1,5 +1,8 @@
-﻿using System.Windows;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Windows;
 using GameItemEditor.Wpf.Services;
+using GameItemEditor.Wpf.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,12 +17,21 @@ namespace GameItemEditor.Wpf
         {
             _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) =>
             {
+                services.AddSingleton(new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    Converters = { new JsonStringEnumConverter() }
+                });
+
                 services.AddHttpClient<IApiClient, ApiClient>(client =>
                 {
                     client.BaseAddress = new Uri("http://localhost:5000");
                     client.DefaultRequestHeaders.Add("Accept", "application/json");
+                    client.Timeout = TimeSpan.FromSeconds(30);
                 });
 
+                services.AddTransient<MainViewModel>();
                 services.AddSingleton<MainWindow>();
             })
             .ConfigureLogging(logging =>

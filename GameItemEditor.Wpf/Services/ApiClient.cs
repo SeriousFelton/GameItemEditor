@@ -1,4 +1,5 @@
-﻿using System;
+﻿#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -24,12 +25,7 @@ namespace GameItemEditor.Wpf.Services
         {
             _httpClient = httpClient;
             _logger = logger;
-            _jsonOptions = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
-                };
+            _jsonOptions = jsonOptions;
         }
 
         public async Task<List<GameItem>> GetItemsAsync(
@@ -56,6 +52,11 @@ namespace GameItemEditor.Wpf.Services
                 response.EnsureSuccessStatusCode();
 
                 return await response.Content.ReadFromJsonAsync<List<GameItem>>(_jsonOptions, cancellationToken) ?? new List<GameItem>();
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "Ошибка при запросе к API");
+                throw;
             }
             catch (Exception ex)
             {
