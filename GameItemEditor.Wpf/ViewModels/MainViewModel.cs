@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using GameItemEditor.Core.Enums;
 using GameItemEditor.Core.Models;
 using GameItemEditor.Wpf.Services;
+using GameItemEditor.Wpf.Views;
 using Microsoft.Extensions.Logging;
 
 namespace GameItemEditor.Wpf.ViewModels
@@ -77,6 +78,9 @@ namespace GameItemEditor.Wpf.ViewModels
             OpenEditorCommand = new RelayCommand(OpenEditor, CanOpenEditor);
             SearchCommand = new AsyncRelayCommand(SearchAsync, CanSearch);
             CancelCommand = new RelayCommand(Cancel, CanCancel);
+            CreateItemCommand = new RelayCommand(OpenCreateDialog);
+            CloneItemCommand = new RelayCommand<GameItem>(OpenCloneDialog, CanCloneItem);
+            EditItemCommand = new RelayCommand<GameItem>(OpenEditDialog, CanEditItem);
 
             // Устанавливаем значения по умолчанию для фильтров (Все)
             _selectedType = ItemTypesWithAll[0];
@@ -89,11 +93,15 @@ namespace GameItemEditor.Wpf.ViewModels
         public IRelayCommand OpenEditorCommand { get; }
         public IAsyncRelayCommand SearchCommand { get; }
         public IRelayCommand CancelCommand { get; }
+        public IRelayCommand CreateItemCommand { get; }
+        public IRelayCommand<GameItem> CloneItemCommand { get; }
+        public IRelayCommand<GameItem> EditItemCommand { get; }
 
         // Загрузка списка предметов
         private async Task LoadItemsAsync()
         {
-            if (IsBusy) return;
+            if (IsBusy) 
+                return;
 
             try
             {
@@ -204,6 +212,108 @@ namespace GameItemEditor.Wpf.ViewModels
             _ = LoadItemsAsync();
         }
 
+        // Открытие диалога создания предмета
+        private void OpenCreateDialog()
+        {
+            if (IsBusy)
+                return;
+
+            ShowDialog(new ItemDialogViewModel(DialogMode.Create));
+        }
+
+        // Открытие диалога клонирования предмета
+        private void OpenCloneDialog(GameItem? item)
+        {
+            if (IsBusy || item == null)
+                return;
+
+            ShowDialog(new ItemDialogViewModel(DialogMode.Clone, item));
+        }
+
+        private bool CanCloneItem(GameItem? item) => !IsBusy && item != null;
+
+        // Открытие диалога редактирования предмета
+        private void OpenEditDialog(GameItem? item)
+        {
+            if (IsBusy || item == null)
+                return;
+
+            ShowDialog(new ItemDialogViewModel(DialogMode.Edit, item));
+        }
+
+        private bool CanEditItem(GameItem? item) => !IsBusy && item != null;
+
+        private void ShowDialog(ItemDialogViewModel viewModel)
+        {
+            var dialog = new ItemDialog(viewModel);
+            dialog.Owner = Application.Current.MainWindow;
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+
+            if (dialog.ShowDialog() == true && viewModel.Result != null)
+            {
+                if (viewModel.Mode == DialogMode.Edit)
+                {
+                    // Обновляем существующий предмет
+                    _ = UpdateItemAsync(viewModel.Result);
+                }
+                else
+                {
+                    // Создаём новый (или копируем)
+                    _ = CreateItemAsync(viewModel.Result);
+                }
+            }
+        }
+
+        private async Task UpdateItemAsync(GameItem item)
+        {
+            try
+            {
+                IsBusy = true;
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource = new CancellationTokenSource();
+
+                await _apiClient.UpdateItemAsync(item.Id, item, _cancellationTokenSource.Token);
+
+                // Обновляем предмет в коллекции
+                var index = Items.IndexOf(Items.FirstOrDefault(i => i.Id == item.Id));
+                if (index >= 0)
+                {
+                    Items[index] = item;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Ошибка при обновлении предмета {item.Id}");
+                MessageBox.Show($"Не удалось обновить предмет: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        private async Task CreateItemAsync(GameItem item)
+        {
+            try
+            {
+                IsBusy = true;
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource = new CancellationTokenSource();
+
+                var createdItem = await _apiClient.CreateItemAsync(item, _cancellationTokenSource.Token);
+                Items.Add(createdItem);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при создании предмета");
+                MessageBox.Show($"Не удалось создать предмет: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
         // При изменении текста поиска
         partial void OnSearchTextChanged(string value)
         {
@@ -229,6 +339,7 @@ namespace GameItemEditor.Wpf.ViewModels
         {
             _ = SearchAsync();
         }
+
     }
     public class FilterItem<T>
     {

@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Windows;
 using GameItemEditor.Wpf.Services;
 using GameItemEditor.Wpf.ViewModels;
+using GameItemEditor.Wpf.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -33,6 +34,8 @@ namespace GameItemEditor.Wpf
 
                 services.AddTransient<MainViewModel>();
                 services.AddSingleton<MainWindow>();
+                services.AddTransient<ItemDialogViewModel>();
+                services.AddTransient<ItemDialog>();
             })
             .ConfigureLogging(logging =>
             {

@@ -51,22 +51,27 @@
 
         <!-- Панель инструментов -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
-            <Button Content="Создать" Command="{Binding OpenEditorCommand}" 
-                    Width="120" Height="30" Margin="0,0,10,0"/>
-            <Button Content="Удалить" Command="{Binding DeleteItemCommand}" 
-                    CommandParameter="{Binding SelectedItem}"
-                    Width="120" Height="30" Margin="0,0,10,0"/>
-            <Button Content="Обновить" Command="{Binding LoadItemsCommand}" 
-                    Width="120" Height="30" Margin="0,0,10,0"/>
-            <Button Content="Отмена" Command="{Binding CancelCommand}" 
-                    Width="120" Height="30" Margin="0,0,10,0"
-                    IsEnabled="{Binding IsBusy}"/>
+            <Button Content="📝 Создать" Command="{Binding CreateItemCommand}" 
+            Width="100" Height="30" Margin="0,0,10,0"/>
+            <Button Content="📋 Клонировать" Command="{Binding CloneItemCommand}" 
+            CommandParameter="{Binding SelectedItem}"
+            Width="100" Height="30" Margin="0,0,10,0"/>
+            <Button Content="✏️ Редактировать" Command="{Binding EditItemCommand}" 
+            CommandParameter="{Binding SelectedItem}"
+            Width="100" Height="30" Margin="0,0,10,0"/>
+            <Button Content="🗑️ Удалить" Command="{Binding DeleteItemCommand}" 
+            CommandParameter="{Binding SelectedItem}"
+            Width="100" Height="30" Margin="0,0,10,0"/>
+            <Button Content="🔄 Обновить" Command="{Binding LoadItemsCommand}" 
+            Width="100" Height="30" Margin="0,0,10,0"/>
+            <Button Content="❌ Отмена" Command="{Binding CancelCommand}" 
+            Width="100" Height="30" Margin="0,0,10,0"
+            IsEnabled="{Binding IsBusy}"/>
 
-            <!-- Прогресс-бар -->
             <ProgressBar Width="150" Height="20" 
-                         IsIndeterminate="{Binding IsBusy}"
-                         Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                         Margin="20,0,0,0"/>
+                 IsIndeterminate="{Binding IsBusy}"
+                 Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                 Margin="20,0,0,0"/>
         </StackPanel>
 
         <!-- Поиск и фильтры (жёсткие значения) -->
@@ -101,7 +106,9 @@
                   CanUserSortColumns="True"
                   IsReadOnly="True"
                   Margin="0,0,0,10"
-                  AlternatingRowBackground="LightGray">
+                  AlternatingRowBackground="LightGray"
+                  MouseDoubleClick="DataGrid_MouseDoubleClick"
+                  MouseDown="DataGrid_MouseDown">
 
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="*"/>
