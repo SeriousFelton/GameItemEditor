@@ -22,10 +22,10 @@
         <Style TargetType="TextBox" x:Key="ErrorTextBox">
             <Setter Property="Margin" Value="0,3"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=(Validation.HasError)}" Value="True">
+                <DataTrigger Binding="{Binding (Validation.HasError), RelativeSource={RelativeSource Self}}" Value="True">
                     <Setter Property="BorderBrush" Value="Red"/>
                     <Setter Property="BorderThickness" Value="2"/>
-                    <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=(Validation.Errors)[0].ErrorContent}"/>
+                    <Setter Property="ToolTip" Value="{Binding (Validation.Errors)[0].ErrorContent, RelativeSource={RelativeSource Self}}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -78,13 +78,13 @@
         <!-- Цена -->
         <TextBlock Grid.Row="3" Grid.Column="0" Text="Цена:" Style="{StaticResource LabelStyle}"/>
         <TextBox Grid.Row="3" Grid.Column="1" 
-                 Text="{Binding BasePrice, UpdateSourceTrigger=PropertyChanged}" 
+                 Text="{Binding BasePrice, UpdateSourceTrigger=PropertyChanged, TargetNullValue='', ValidatesOnExceptions=False}" 
                  Style="{StaticResource ErrorTextBox}"/>
 
         <!-- Вес -->
         <TextBlock Grid.Row="4" Grid.Column="0" Text="Вес:" Style="{StaticResource LabelStyle}"/>
         <TextBox Grid.Row="4" Grid.Column="1" 
-                 Text="{Binding Weight, UpdateSourceTrigger=PropertyChanged}" 
+                 Text="{Binding Weight, UpdateSourceTrigger=PropertyChanged, TargetNullValue='', ValidatesOnExceptions=False}" 
                  Style="{StaticResource ErrorTextBox}"/>
 
         <!-- Свойства (заглушка) -->
