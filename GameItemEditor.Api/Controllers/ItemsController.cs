@@ -162,6 +162,37 @@ namespace GameItemEditor.Api.Controllers
             }
         }
 
+        [HttpPost("batch")]
+        public async Task<IActionResult> DeleteItemsBatch([FromBody] List<Guid> ids)
+        {
+            if (ids == null || ids.Count == 0)
+            {
+                return BadRequest("Список ID не может быть пустым");
+            }
+
+            try
+            {
+                var items = await _context.GameItems
+                    .Where(i => ids.Contains(i.Id))
+                    .ToListAsync();
+
+                if (items.Count == 0)
+                {
+                    return NotFound("Предметы не найдены");
+                }
+
+                _context.GameItems.RemoveRange(items);
+                await _context.SaveChangesAsync();
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при удалении списка предметов");
+                return StatusCode(500, "Внутренняя ошибка сервера");
+            }
+        }
+
         [HttpPatch("{id}")]
         public async Task<IActionResult> PatchItem(Guid id, [FromBody] PatchItemDto dto)
         {

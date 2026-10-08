@@ -1,4 +1,5 @@
-﻿using GameItemEditor.Wpf.ViewModels;
+﻿using GameItemEditor.Core.Models;
+using GameItemEditor.Wpf.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -51,6 +52,19 @@ namespace GameItemEditor.Wpf
                             viewModel.SelectedItem = null;
                         }
                     }
+                }
+            }
+        }
+
+        private void DataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DataContext is MainViewModel viewModel)
+            {
+                viewModel.SelectedItems.Clear();
+                foreach (var item in ((DataGrid)sender).SelectedItems)
+                {
+                    if (item is GameItem gameItem)
+                        viewModel.SelectedItems.Add(gameItem);
                 }
             }
         }

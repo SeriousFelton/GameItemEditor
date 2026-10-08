@@ -21,5 +21,6 @@ namespace GameItemEditor.Wpf.Services
         Task UpdateItemAsync(Guid id, GameItem item, CancellationToken cancellationToken = default);
         Task PatchItemAsync(Guid id, object patchDto, CancellationToken cancellationToken = default);
         Task DeleteItemAsync(Guid id, CancellationToken cancellationToken = default);
+        Task DeleteItemsAsync(List<Guid> ids, CancellationToken cancellationToken = default);
     }
 }

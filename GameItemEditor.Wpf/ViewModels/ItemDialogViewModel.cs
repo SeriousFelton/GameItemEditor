@@ -1,13 +1,18 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using GameItemEditor.Core.Enums;
+using GameItemEditor.Core.Models;
+using GameItemEditor.Wpf.Services;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Net.Http;
 using System.Text.Json;
+using System.Windows;
 using System.Windows.Input;
-using CommunityToolkit.Mvvm.Input;
-using GameItemEditor.Core.Enums;
-using GameItemEditor.Core.Models;
 
 namespace GameItemEditor.Wpf.ViewModels
 {
@@ -18,19 +23,24 @@ namespace GameItemEditor.Wpf.ViewModels
         Clone
     }
 
-    public class ItemDialogViewModel : INotifyDataErrorInfo
+    public partial class ItemDialogViewModel : ObservableObject, INotifyDataErrorInfo
     {
         private readonly DialogMode _mode;
         private readonly GameItem? _sourceItem;
         private readonly Dictionary<string, List<string>> _errors = new();
+        private readonly IApiClient _apiClient;
+        private readonly ILogger<ItemDialogViewModel> _logger;
+        private CancellationTokenSource _cancellationTokenSource;
 
-        public ItemDialogViewModel(DialogMode mode, GameItem? sourceItem = null)
+        public ItemDialogViewModel(DialogMode mode, IApiClient apiClient, ILogger<ItemDialogViewModel> logger, GameItem? sourceItem = null)
         {
             _mode = mode;
             _sourceItem = sourceItem;
+            _apiClient = apiClient;
+            _logger = logger;
 
             // Инициализация команд
-            SaveCommand = new RelayCommand(Save, CanSave);
+            SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
             CancelCommand = new RelayCommand(Cancel);
 
             // Заполняем поля в зависимости от режима
@@ -103,8 +113,12 @@ namespace GameItemEditor.Wpf.ViewModels
         // Свойство для проверки есть ли ошибки
         public bool HasErrors => _errors.Any();
 
+        // Состояние загрузки
+        [ObservableProperty]
+        private bool _isBusy;
+
         // Команды
-        public IRelayCommand SaveCommand { get; }
+        public IAsyncRelayCommand SaveCommand { get; }
         public IRelayCommand CancelCommand { get; }
 
         // Событие для закрытия окна
@@ -170,30 +184,96 @@ namespace GameItemEditor.Wpf.ViewModels
             }
         }
 
-        private bool CanSave() => !HasErrors && !string.IsNullOrWhiteSpace(Name)
+        private bool CanSave() => !IsBusy
+                                  && !HasErrors 
+                                  && !string.IsNullOrWhiteSpace(Name)
                                   && BasePrice.HasValue && BasePrice.Value >= 0
                                   && Weight.HasValue && Weight.Value >= 0;
 
-        private void Save()
+        private async Task SaveAsync()
         {
-            Result = new GameItem
-            {
-                Id = Id,
-                Name = this.Name,
-                Type = this.Type,
-                Rarity = this.Rarity,
-                BasePrice = this.BasePrice ?? 0,
-                Weight = this.Weight ?? 0,
-                PropertiesJson = JsonSerializer.Serialize(this.Properties),
-                CreatedAt = _sourceItem?.CreatedAt ?? DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+            if (IsBusy)
+                return;
 
-            CloseDialog?.Invoke(true);
+            try
+            {
+                IsBusy = true;
+                _cancellationTokenSource = new CancellationTokenSource();
+                var token = _cancellationTokenSource.Token;
+
+                var item = new GameItem
+                {
+                    Id = Id,
+                    Name = this.Name,
+                    Type = this.Type,
+                    Rarity = this.Rarity,
+                    BasePrice = this.BasePrice ?? 0,
+                    Weight = this.Weight ?? 0,
+                    PropertiesJson = JsonSerializer.Serialize(this.Properties),
+                    CreatedAt = _sourceItem?.CreatedAt ?? DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                switch (_mode)
+                {
+                    case DialogMode.Edit:
+                        await _apiClient.UpdateItemAsync(item.Id, item, token);
+                        break;
+
+                    case DialogMode.Create:
+                    case DialogMode.Clone:
+                        await _apiClient.CreateItemAsync(item, token);
+                        break;
+                }
+
+                Result = item;
+                CloseDialog?.Invoke(true);
+            }
+            catch (OperationCanceledException ex)
+            {
+                // Проверка на отмену юзверем
+                if (_cancellationTokenSource?.IsCancellationRequested == true)
+                {
+                    _logger.LogInformation("Сохранение отменено пользователем");
+                }
+                else
+                {
+                    // Это таймаут
+                    _logger.LogError(ex, "Таймаут запроса к серверу");
+                    MessageBox.Show(
+                        "Сервер не отвечает.\nПопробуйте позже или проверьте подключение.",
+                        "Таймаут",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "Не удалось подключиться к серверу API");
+                MessageBox.Show(
+                    "Не удалось подключиться к серверу.\nПроверьте, что сервер запущен и доступен.",
+                    "Ошибка подключения",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Непредвиденная ошибка при сохранении предмета");
+                MessageBox.Show(
+                    "Произошла непредвиденная ошибка при сохранении.\nПопробуйте ещё раз или обратитесь к администратору.",
+                    "Ошибка",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
         private void Cancel()
         {
+            _cancellationTokenSource?.Cancel();
             Result = null;
             CloseDialog?.Invoke(false);
         }
@@ -237,6 +317,11 @@ namespace GameItemEditor.Wpf.ViewModels
             if (!_errors.ContainsKey(propertyName))
                 _errors[propertyName] = new List<string>();
             _errors[propertyName].Add(error);
+        }
+
+        partial void OnIsBusyChanged(bool value)
+        {
+            SaveCommand.NotifyCanExecuteChanged();
         }
     }
 }

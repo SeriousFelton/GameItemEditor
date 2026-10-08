@@ -143,5 +143,18 @@ namespace GameItemEditor.Wpf.Services
             }
         }
 
+        public async Task DeleteItemsAsync(List<Guid> ids, CancellationToken cancellationToken= default)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync("api/items/batch", ids, _jsonOptions, cancellationToken);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при удалении списка предметов");
+                throw;
+            }
+        }
     }
 }

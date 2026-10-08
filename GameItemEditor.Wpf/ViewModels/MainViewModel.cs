@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -18,6 +19,7 @@ namespace GameItemEditor.Wpf.ViewModels
     {
         private readonly IApiClient _apiClient;
         private readonly ILogger<MainViewModel> _logger;
+        private readonly ILoggerFactory _loggerFactory;
         private CancellationTokenSource _cancellationTokenSource;
 
         // Коллекция предметов для DataGrid
@@ -44,6 +46,8 @@ namespace GameItemEditor.Wpf.ViewModels
         [ObservableProperty]
         private GameItem? _selectedItem;
 
+        public ObservableCollection<GameItem> SelectedItems { get; } = new();
+
         // Список типов для ComboBox
         public List<FilterItem<ItemType>> ItemTypesWithAll { get; } = new()
         {
@@ -67,20 +71,28 @@ namespace GameItemEditor.Wpf.ViewModels
         };
 
         // Конструктор
-        public MainViewModel(IApiClient apiClient, ILogger<MainViewModel> logger)
+        public MainViewModel(IApiClient apiClient, ILogger<MainViewModel> logger, ILoggerFactory loggerFactory)
         {
             _apiClient = apiClient;
             _logger = logger;
+            _loggerFactory = loggerFactory;
 
             // Инициализация команд
             LoadItemsCommand = new AsyncRelayCommand(LoadItemsAsync, CanLoadItem);
             DeleteItemCommand = new AsyncRelayCommand<GameItem>(DeleteItemAsync, CanDeleteItem);
+            DeleteSelectedItemsCommand = new AsyncRelayCommand(DeleteSelectedItemsAsync, CanDeleteSelectedItems);
             OpenEditorCommand = new RelayCommand(OpenEditor, CanOpenEditor);
             SearchCommand = new AsyncRelayCommand(SearchAsync, CanSearch);
             CancelCommand = new RelayCommand(Cancel, CanCancel);
             CreateItemCommand = new RelayCommand(OpenCreateDialog);
             CloneItemCommand = new RelayCommand<GameItem>(OpenCloneDialog, CanCloneItem);
             EditItemCommand = new RelayCommand<GameItem>(OpenEditDialog, CanEditItem);
+
+            SelectedItems.CollectionChanged += (s, e) =>
+            {
+                DeleteSelectedItemsCommand?.NotifyCanExecuteChanged();
+                DeleteItemCommand?.NotifyCanExecuteChanged();
+            };
 
             // Устанавливаем значения по умолчанию для фильтров (Все)
             _selectedType = ItemTypesWithAll[0];
@@ -90,6 +102,7 @@ namespace GameItemEditor.Wpf.ViewModels
         // Команды
         public IAsyncRelayCommand LoadItemsCommand { get; }
         public IAsyncRelayCommand<GameItem> DeleteItemCommand { get; }
+        public IAsyncRelayCommand DeleteSelectedItemsCommand { get; }
         public IRelayCommand OpenEditorCommand { get; }
         public IAsyncRelayCommand SearchCommand { get; }
         public IRelayCommand CancelCommand { get; }
@@ -142,7 +155,8 @@ namespace GameItemEditor.Wpf.ViewModels
         // Удаление предмета
         private async Task DeleteItemAsync(GameItem? item)
         {
-            if (item == null || IsBusy) return;
+            if (item == null || IsBusy) 
+                return;
 
             var result = MessageBox.Show(
                 $"Удалить предмет '{item.Name}'?",
@@ -150,7 +164,8 @@ namespace GameItemEditor.Wpf.ViewModels
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
-            if (result != MessageBoxResult.Yes) return;
+            if (result != MessageBoxResult.Yes) 
+                return;
 
             try
             {
@@ -179,7 +194,66 @@ namespace GameItemEditor.Wpf.ViewModels
             }
         }
 
-        private bool CanDeleteItem(GameItem? item) => !IsBusy && item != null;
+        private bool CanDeleteItem(GameItem? item) => !IsBusy && item != null && SelectedItems.Count <= 1;
+
+        private async Task DeleteSelectedItemsAsync()
+        {
+            if (SelectedItems.Count == 0 || IsBusy)
+                return;
+
+            var result = MessageBox.Show(
+                $"Удалить {SelectedItems.Count} предметов?",
+                "Подтверждение удаления",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                IsBusy = true;
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource = new CancellationTokenSource();
+
+                var ids = SelectedItems.Select(i => i.Id).ToList();
+
+                await _apiClient.DeleteItemsAsync(ids, _cancellationTokenSource.Token);
+
+
+                var itemsToRemove = SelectedItems.ToList();
+                foreach (var item in itemsToRemove)
+                {
+                    Items.Remove(item);
+                }
+
+                SelectedItems.Clear();
+                SelectedItem = null;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Массовое удаление отменено");
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "Не удалось подключиться к серверу");
+                MessageBox.Show("Не удалось подключиться к серверу", "Ошибка подключения",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при массовом удалении");
+                MessageBox.Show($"Не удалось удалить предметы: \n{ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        private bool CanDeleteSelectedItems() => !IsBusy && SelectedItems.Count > 0;
+
 
         // Открытие редактора (заглушка, будет заменено в Шаге 8)
         private void OpenEditor()
@@ -218,7 +292,9 @@ namespace GameItemEditor.Wpf.ViewModels
             if (IsBusy)
                 return;
 
-            ShowDialog(new ItemDialogViewModel(DialogMode.Create));
+            var dialoglogger = _loggerFactory.CreateLogger<ItemDialogViewModel>();
+            var dialogViewModel = new ItemDialogViewModel(DialogMode.Create, _apiClient, dialoglogger);
+            ShowDialog(dialogViewModel);
         }
 
         // Открытие диалога клонирования предмета
@@ -227,7 +303,9 @@ namespace GameItemEditor.Wpf.ViewModels
             if (IsBusy || item == null)
                 return;
 
-            ShowDialog(new ItemDialogViewModel(DialogMode.Clone, item));
+            var dialoglogger = _loggerFactory.CreateLogger<ItemDialogViewModel>();
+            var dialogViewModel = new ItemDialogViewModel(DialogMode.Clone, _apiClient, dialoglogger, item);
+            ShowDialog(dialogViewModel);
         }
 
         private bool CanCloneItem(GameItem? item) => !IsBusy && item != null;
@@ -238,7 +316,9 @@ namespace GameItemEditor.Wpf.ViewModels
             if (IsBusy || item == null)
                 return;
 
-            ShowDialog(new ItemDialogViewModel(DialogMode.Edit, item));
+            var dialoglogger = _loggerFactory.CreateLogger<ItemDialogViewModel>();
+            var dialogViewModel = new ItemDialogViewModel(DialogMode.Edit, _apiClient, dialoglogger, item);
+            ShowDialog(dialogViewModel);
         }
 
         private bool CanEditItem(GameItem? item) => !IsBusy && item != null;
@@ -249,68 +329,9 @@ namespace GameItemEditor.Wpf.ViewModels
             dialog.Owner = Application.Current.MainWindow;
             dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-            if (dialog.ShowDialog() == true && viewModel.Result != null)
+            if (dialog.ShowDialog() == true)
             {
-                if (viewModel.Mode == DialogMode.Edit)
-                {
-                    // Обновляем существующий предмет
-                    _ = UpdateItemAsync(viewModel.Result);
-                }
-                else
-                {
-                    // Создаём новый (или копируем)
-                    _ = CreateItemAsync(viewModel.Result);
-                }
-            }
-        }
-
-        private async Task UpdateItemAsync(GameItem item)
-        {
-            try
-            {
-                IsBusy = true;
-                _cancellationTokenSource?.Cancel();
-                _cancellationTokenSource = new CancellationTokenSource();
-
-                await _apiClient.UpdateItemAsync(item.Id, item, _cancellationTokenSource.Token);
-
-                // Обновляем предмет в коллекции
-                var index = Items.IndexOf(Items.FirstOrDefault(i => i.Id == item.Id));
-                if (index >= 0)
-                {
-                    Items[index] = item;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Ошибка при обновлении предмета {item.Id}");
-                MessageBox.Show($"Не удалось обновить предмет: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsBusy = false;
-            }
-        }
-
-        private async Task CreateItemAsync(GameItem item)
-        {
-            try
-            {
-                IsBusy = true;
-                _cancellationTokenSource?.Cancel();
-                _cancellationTokenSource = new CancellationTokenSource();
-
-                var createdItem = await _apiClient.CreateItemAsync(item, _cancellationTokenSource.Token);
-                Items.Add(createdItem);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Ошибка при создании предмета");
-                MessageBox.Show($"Не удалось создать предмет: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsBusy = false;
+                _ = LoadItemsAsync();
             }
         }
 
